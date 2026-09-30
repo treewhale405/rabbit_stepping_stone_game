@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>귀여운 토끼의 징검다리 건너기 - 더블클릭 연습 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Jua', 'Noto Sans KR', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Animated Water Pond Gradient Background */
+        .pond-water {
+            background: radial-gradient(circle at 50% 50%, #38ef7d 0%, #11998e 30%, #0072ff 100%);
+            background-size: 200% 200%;
+            animation: rippleGradient 12s ease infinite;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes rippleGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .water-wave {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            animation: waveExpand 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes waveExpand {
+            0% { width: 10px; height: 10px; opacity: 0.8; transform: translate(-50%, -50%); }
+            100% { width: 350px; height: 350px; opacity: 0; transform: translate(-50%, -50%); }
+        }
+
+        /* Floating Lotus / Pad Effect */
+        .floating-pad {
+            animation: floatPad 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes floatPad {
+            0% { transform: translateY(0px) rotate(0deg); }
+            100% { transform: translateY(-6px) rotate(2deg); }
+        }
+
+        /* Rabbit Parabolic Jump Animation */
+        .rabbit-avatar {
+            transition: left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 30;
+        }
+
+        .rabbit-hop {
+            animation: parabolicJump 0.45s ease-in-out;
+        }
+
+        @keyframes parabolicJump {
+            0% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.35) translateY(-45px); }
+            100% { transform: scale(1) translateY(0); }
+        }
+
+        /* Error Shake Animation */
+        .shake-element {
+            animation: errorShake 0.4s ease-in-out;
+        }
+
+        @keyframes errorShake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px) rotate(-4deg); }
+            40%, 80% { transform: translateX(8px) rotate(4deg); }
+        }
+
+        /* Pulsing Heart Animation for Target Stone */
+        .pulse-heart {
+            animation: heartBeat 0.85s infinite alternate ease-in-out;
+        }
+
+        @keyframes heartBeat {
+            0% { transform: scale(0.9); filter: drop-shadow(0 0 2px rgba(255,255,255,0.8)); }
+            100% { transform: scale(1.3); filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.95)); }
+        }
+
+        #confettiCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-800 flex flex-col min-h-screen items-center justify-center p-2 sm:p-4 select-none">
+
+    <div class="relative w-full max-w-5xl bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border-4 border-cyan-300 overflow-hidden flex flex-col">
+        
+        <!-- Header Bar -->
+        <header class="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 p-3 sm:p-4 text-white flex flex-wrap items-center justify-between gap-3 shadow-md z-10">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl sm:text-4xl">🐰</span>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl sm:text-2xl font-black tracking-wide drop-shadow">토끼의 징검다리 건너기</h1>
+                        <span id="levelBadge" class="bg-yellow-300 text-slate-900 text-xs sm:text-sm font-extrabold px-2.5 py-0.5 rounded-full shadow-sm border border-yellow-100">
+                            1단계 (5개)
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-cyan-100 font-sans">하트(❤️) 돌을 <span class="bg-amber-300 text-slate-900 px-1.5 py-0.5 rounded font-bold">여유있게 더블 클릭</span>하여 건너가세요!</p>
+                </div>
+            </div>
+
+            <!-- Stats & Navigation Buttons -->
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto">
+                <div class="bg-white/20 backdrop-blur-md px-2.5 py-1.5 rounded-2xl flex items-center gap-1.5 border border-white/30 text-xs sm:text-sm">
+                    <span>⏱️</span>
+                    <span id="timerDisplay" class="font-mono font-bold w-12 sm:w-14 text-center">00.0s</span>
+                </div>
+                <div class="bg-white/20 backdrop-blur-md px-2.5 py-1.5 rounded-2xl flex items-center gap-1.5 border border-white/30 text-xs sm:text-sm">
+                    <span>❌</span>
+                    <span id="mistakeDisplay" class="font-mono font-bold text-red-200">0</span>
+                </div>
+                <!-- Menu Buttons: "처음부터" & "게임종료" -->
+                <button id="restartBtn" class="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-3 py-1.5 rounded-2xl shadow-lg transform active:scale-95 transition flex items-center gap-1 text-xs sm:text-sm border-2 border-yellow-200">
+                    <span>🔄</span> 처음부터
+                </button>
+                <button id="headerExitBtn" class="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-2xl shadow-lg transform active:scale-95 transition flex items-center gap-1 text-xs sm:text-sm border-2 border-rose-300">
+                    <span>🚪</span> 게임종료
+                </button>
+            </div>
+        </header>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-blue-900/20 h-3 relative">
+            <div id="progressBar" class="h-full bg-gradient-to-r from-yellow-400 to-emerald-400 w-0 transition-all duration-300"></div>
+        </div>
+
+        <!-- Single Click Warning Toast Popup -->
+        <div id="toastWarning" class="absolute top-16 left-1/2 transform -translate-x-1/2 bg-amber-500/95 text-white px-5 py-2.5 rounded-full shadow-2xl border-2 border-amber-200 text-sm sm:text-base font-bold flex items-center gap-2 opacity-0 pointer-events-none transition-all duration-200 z-40">
+            <span>🖱️🖱️</span> 하트 돌을 <span class="underline underline-offset-4 decoration-2 font-black">더블 클릭</span> 해주세요!
+        </div>
+
+        <div id="pondContainer" class="pond-water relative w-full h-[450px] sm:h-[520px] flex items-center justify-center overflow-hidden">
+            <canvas id="confettiCanvas"></canvas>
+
+            <!-- Decorative Water Plants -->
+            <div class="absolute top-6 left-10 text-3xl opacity-80 floating-pad" style="animation-delay: 0s;">🪷</div>
+            <div class="absolute bottom-8 right-12 text-3xl opacity-80 floating-pad" style="animation-delay: 1.2s;">🪷</div>
+            <div class="absolute top-1/2 right-8 text-2xl opacity-60 floating-pad" style="animation-delay: 0.6s;">🍃</div>
+            <div class="absolute bottom-10 left-1/4 text-2xl opacity-60 floating-pad" style="animation-delay: 1.8s;">🍃</div>
+
+            <!-- Start Bank (Left Shore) -->
+            <div id="startShore" class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-16 sm:w-20 h-52 bg-emerald-600 border-4 border-emerald-400 rounded-r-3xl shadow-2xl flex flex-col items-center justify-center gap-1 z-10">
+                <span class="text-[10px] sm:text-xs text-emerald-100 font-bold bg-emerald-800/60 px-2 py-0.5 rounded-full">시작</span>
+                <span class="text-2xl sm:text-3xl">🌱</span>
+            </div>
+
+            <!-- Goal Bank (Right Shore) -->
+            <div id="goalShore" class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-16 sm:w-20 h-52 bg-gradient-to-br from-amber-400 to-orange-500 border-4 border-yellow-200 rounded-l-3xl shadow-2xl flex flex-col items-center justify-center gap-1 z-10">
+                <span class="text-[10px] sm:text-xs text-amber-950 font-bold bg-yellow-200/80 px-2 py-0.5 rounded-full">도착</span>
+                <span class="text-2xl sm:text-3xl">🥕</span>
+            </div>
+
+            <!-- Rabbit Character Element -->
+            <div id="rabbit" class="rabbit-avatar absolute text-3xl sm:text-4xl filter drop-shadow-lg flex items-center justify-center pointer-events-none" style="width: 44px; height: 44px; transform: translate(-50%, -50%);">
+                🐰
+            </div>
+
+            <!-- Stepping Stones Layer -->
+            <div id="stonesLayer" class="absolute inset-0 pointer-events-auto"></div>
+        </div>
+
+        <!-- Footer Instructions -->
+        <footer class="bg-slate-100 p-3 text-center text-xs sm:text-sm text-slate-600 flex flex-wrap justify-center items-center gap-4 border-t border-slate-200">
+            <span class="flex items-center gap-1">💡 <strong class="text-slate-800">팁:</strong> 단계마다 돌이 2개씩 늘어나며 넓게 배치됩니다! 연속으로 두 번 누르세요.</span>
+            <span class="flex items-center gap-1">총 5단계 (5개 ➔ 7개 ➔ 9개 ➔ 11개 ➔ 13개)</span>
+        </footer>
+    </div>
+
+    <!-- Stage Clear Modal (Stages 1-4) -->
+    <div id="stageClearModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-teal-400 transform scale-90 transition-transform duration-300 id-modal-box">
+            <div class="text-5xl mb-2">🎉</div>
+            <h2 id="stageClearTitle" class="text-2xl sm:text-3xl font-black text-slate-800 mb-1">1단계 성공!</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mb-5">징검다리를 잘 건넜습니다! 다음 단계에 도전해보세요.</p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-6 space-y-2">
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-600 font-bold">이번 단계 소요 시간</span>
+                    <span id="stageTime" class="font-mono font-black text-lg text-blue-600">00.0초</span>
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-slate-600 font-bold">이번 단계 실수</span>
+                    <span id="stageMistakes" class="font-mono font-black text-lg text-red-500">0회</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button id="retryStageBtn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 rounded-2xl shadow transition active:scale-95 text-sm sm:text-base">
+                    다시 하기 🔄
+                </button>
+                <button id="nextStageBtn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-3 rounded-2xl shadow-lg transition active:scale-95 text-sm sm:text-base">
+                    다음 단계 ➔
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Stage Victory Modal (Stage 5) -->
+    <div id="gameFinishModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-yellow-400 transform scale-90 transition-transform duration-300 id-modal-box">
+            <div class="text-6xl mb-2 animate-bounce">🏆</div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-800 mb-1">모든 단계 클리어!</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mb-5">축하합니다! 5단계 징검다리를 완벽히 건너갔습니다!</p>
+
+            <div class="bg-yellow-50 rounded-2xl p-4 border border-yellow-200 mb-6 space-y-2">
+                <div class="flex justify-between items-center text-sm sm:text-base">
+                    <span class="text-slate-700 font-bold">총 누적 소요 시간</span>
+                    <span id="totalFinalTime" class="font-mono font-black text-xl text-blue-600">00.0초</span>
+                </div>
+                <div class="flex justify-between items-center text-sm sm:text-base">
+                    <span class="text-slate-700 font-bold">총 누적 실수</span>
+                    <span id="totalFinalMistakes" class="font-mono font-black text-xl text-red-500">0회</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button id="nextGameBtn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition active:scale-95 text-sm sm:text-base">
+                    🎮 다음 게임
+                </button>
+                <button id="exitGameModalBtn" class="w-full bg-slate-500 hover:bg-slate-600 text-white font-bold py-3.5 rounded-2xl shadow-lg transition active:scale-95 text-sm sm:text-base">
+                    🚪 게임 종료
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Game Confirmation/Summary Overlay Modal -->
+    <div id="exitGameOverlay" class="fixed inset-0 bg-slate-900/85 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl border-4 border-rose-400 transform scale-90 transition-transform duration-300 id-modal-box">
+            <div class="text-5xl mb-2">👋</div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-800 mb-1">게임을 종료했습니다</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mb-6">수고하셨습니다! 더블클릭 연습이 즐거우셨길 바랍니다.</p>
+            <button id="restartFromExitBtn" class="w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition active:scale-95 text-sm sm:text-base">
+                🎮 새 게임 시작
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Web Audio Synthesizer Class
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playHop() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                const now = this.ctx.currentTime;
+
+                osc.frequency.setValueAtTime(240, now);
+                osc.frequency.exponentialRampToValueAtTime(620, now + 0.16);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.18);
+            }
+
+            playError() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                const now = this.ctx.currentTime;
+
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.linearRampToValueAtTime(110, now + 0.2);
+
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+
+            playHint() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'triangle';
+                const now = this.ctx.currentTime;
+
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(330, now + 0.08);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            playVictory() {
+                this.init();
+                if (!this.ctx) return;
+                const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+                notes.forEach((freq, index) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const now = this.ctx.currentTime + (index * 0.08);
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                });
+            }
+        }
+
+        const sounds = new SoundEffects();
+
+        // Level Configuration (+2 stones per level: 5, 7, 9, 11, 13)
+        const STAGE_CONFIG = [
+            { level: 1, stonesCount: 5 },
+            { level: 2, stonesCount: 7 },
+            { level: 3, stonesCount: 9 },
+            { level: 4, stonesCount: 11 },
+            { level: 5, stonesCount: 13 }
+        ];
+
+        // Custom double click timing threshold (650ms for practice speed)
+        const SLOW_DOUBLE_CLICK_THRESHOLD = 650;
+
+        let currentLevelIdx = 0;
+        let currentStep = -1; // -1: Start shore, 0..N-1: Stones, N: Goal shore
+        let totalStonesCount = 5;
+
+        let stageMistakes = 0;
+        let totalAccumulatedMistakes = 0;
+
+        let stageStartTime = null;
+        let totalAccumulatedTime = 0;
+        let timerInterval = null;
+
+        let isGameActive = false;
+        let stonesData = [];
+
+        // Click Timing Tracker for lenient double click
+        let lastClickTime = 0;
+        let lastClickStoneIndex = null;
+        let singleClickTimeout = null;
+
+        // DOM Elements
+        const pondContainer = document.getElementById('pondContainer');
+        const stonesLayer = document.getElementById('stonesLayer');
+        const rabbit = document.getElementById('rabbit');
+        const startShore = document.getElementById('startShore');
+        const goalShore = document.getElementById('goalShore');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const mistakeDisplay = document.getElementById('mistakeDisplay');
+        const levelBadge = document.getElementById('levelBadge');
+        const progressBar = document.getElementById('progressBar');
+        const toastWarning = document.getElementById('toastWarning');
+        const restartBtn = document.getElementById('restartBtn');
+        const headerExitBtn = document.getElementById('headerExitBtn');
+
+        // Modals
+        const stageClearModal = document.getElementById('stageClearModal');
+        const stageClearTitle = document.getElementById('stageClearTitle');
+        const stageTime = document.getElementById('stageTime');
+        const stageMistakesEl = document.getElementById('stageMistakes');
+        const retryStageBtn = document.getElementById('retryStageBtn');
+        const nextStageBtn = document.getElementById('nextStageBtn');
+
+        const gameFinishModal = document.getElementById('gameFinishModal');
+        const totalFinalTime = document.getElementById('totalFinalTime');
+        const totalFinalMistakes = document.getElementById('totalFinalMistakes');
+        const nextGameBtn = document.getElementById('nextGameBtn');
+        const exitGameModalBtn = document.getElementById('exitGameModalBtn');
+
+        const exitGameOverlay = document.getElementById('exitGameOverlay');
+        const restartFromExitBtn = document.getElementById('restartFromExitBtn');
+
+        function createWaterRipples() {
+            const numWaves = 4;
+            for (let i = 0; i < numWaves; i++) {
+                const wave = document.createElement('div');
+                wave.className = 'water-wave';
+                wave.style.left = `${20 + Math.random() * 60}%`;
+                wave.style.top = `${20 + Math.random() * 60}%`;
+                wave.style.animationDelay = `${i * 1.2}s`;
+                pondContainer.appendChild(wave);
+            }
+        }
+
+        function generateStonePositions() {
+            stonesLayer.innerHTML = '';
+            stonesData = [];
+
+            const containerWidth = pondContainer.clientWidth;
+            const containerHeight = pondContainer.clientHeight;
+
+            // Define boundaries for stones in the pond
+            const minX = containerWidth * 0.16;
+            const maxX = containerWidth * 0.84;
+            const totalXSpan = maxX - minX;
+
+            const minY = containerHeight * 0.15;
+            const maxY = containerHeight * 0.85;
+
+            // X-slice step for progressive left-to-right ordering while randomizing Y
+            const xStep = totalXSpan / (totalStonesCount + 1);
+
+            // Minimum distance between adjacent stones to avoid overlaps
+            const minDistance = totalStonesCount >= 10 ? 38 : 48;
+
+            for (let i = 0; i < totalStonesCount; i++) {
+                // X progresses from left shore to right shore with random jitter
+                const baseX = minX + xStep * (i + 1);
+                const xJitter = (Math.random() - 0.5) * (xStep * 0.5);
+                let x = Math.min(maxX - 20, Math.max(minX + 20, baseX + xJitter));
+
+                // Random Y scattered across upper, middle, and lower pond regions
+                let y;
+                let attempts = 0;
+
+                do {
+                    // Random Y across full pond height
+                    y = minY + Math.random() * (maxY - minY);
+                    attempts++;
+
+                    // Verify distance from previous stone
+                    if (i > 0) {
+                        const prevStone = stonesData[i - 1];
+                        const dist = Math.hypot(x - prevStone.x, y - prevStone.y);
+                        if (dist >= minDistance) break;
+                    } else {
+                        break;
+                    }
+                } while (attempts < 25);
+
+                const stoneEl = document.createElement('div');
+                stoneEl.className = 'absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-pointer transition-transform duration-200 hover:scale-105';
+                stoneEl.style.left = `${x}px`;
+                stoneEl.style.top = `${y}px`;
+
+                // Adapt stone element dimensions based on density
+                const stoneSizeClass = totalStonesCount >= 11 
+                    ? 'w-10 h-10 sm:w-14 sm:h-14' 
+                    : (totalStonesCount >= 8 ? 'w-12 h-12 sm:w-16 sm:h-16' : 'w-14 h-14 sm:w-20 sm:h-20');
+
+                stoneEl.innerHTML = `
+                    <div class="stone-body relative ${stoneSizeClass} bg-slate-300 border-4 border-slate-400 rounded-full shadow-xl flex items-center justify-center transition-all duration-300">
+                        <span class="stone-icon text-lg sm:text-2xl select-none"></span>
+                        <span class="absolute -bottom-2 text-[9px] sm:text-[10px] font-black bg-slate-700 text-slate-200 px-1.5 py-0.2 rounded-full border border-slate-500">${i + 1}</span>
+                    </div>
+                `;
+
+                // Handle custom click/double-click logic
+                stoneEl.addEventListener('click', (e) => handleCustomStoneClick(e, i));
+
+                stonesLayer.appendChild(stoneEl);
+
+                stonesData.push({
+                    index: i,
+                    x: x,
+                    y: y,
+                    element: stoneEl
+                });
+            }
+        }
+
+        function handleCustomStoneClick(e, index) {
+            if (!isGameActive) return;
+
+            const now = Date.now();
+            const timeDiff = now - lastClickTime;
+
+            // Start stage timer on first click
+            if (stageStartTime === null && currentStep === -1) {
+                startTimer();
+            }
+
+            // Check if second click on same stone occurs within threshold
+            if (lastClickStoneIndex === index && timeDiff <= SLOW_DOUBLE_CLICK_THRESHOLD) {
+                // SUCCESSFUL DOUBLE CLICK
+                clearTimeout(singleClickTimeout);
+                lastClickTime = 0;
+                lastClickStoneIndex = null;
+
+                onStoneDoubleClickSuccess(index);
+            } else {
+                // FIRST SINGLE CLICK
+                lastClickTime = now;
+                lastClickStoneIndex = index;
+
+                clearTimeout(singleClickTimeout);
+                singleClickTimeout = setTimeout(() => {
+                    onStoneSingleClickTimeout(index);
+                    lastClickTime = 0;
+                    lastClickStoneIndex = null;
+                }, SLOW_DOUBLE_CLICK_THRESHOLD);
+            }
+        }
+
+        function onStoneSingleClickTimeout(index) {
+            if (!isGameActive) return;
+
+            const targetStep = currentStep + 1;
+            if (index === targetStep) {
+                // Clicked target stone once -> show warning toast
+                showToastWarning();
+                triggerErrorShake(stonesData[index].element);
+            } else if (index > targetStep) {
+                // Clicked wrong stone
+                triggerMistake(stonesData[index].element);
+            }
+        }
+
+        function onStoneDoubleClickSuccess(index) {
+            const targetStep = currentStep + 1;
+
+            if (index === targetStep) {
+                // Correct Double Click!
+                currentStep++;
+                updateProgressBar();
+
+                const targetStone = stonesData[index];
+                moveRabbitTo(targetStone.x, targetStone.y, () => {
+                    updateStoneHighlights();
+
+                    // Reached final stone of current level?
+                    if (currentStep === totalStonesCount - 1) {
+                        setTimeout(jumpToGoalShore, 250);
+                    }
+                });
+            } else if (index > targetStep) {
+                // Double clicked stone out of sequence
+                triggerMistake(stonesData[index].element);
+            }
+        }
+
+        function moveRabbitTo(x, y, onComplete) {
+            sounds.playHop();
+
+            rabbit.classList.remove('rabbit-hop');
+            void rabbit.offsetWidth;
+            rabbit.classList.add('rabbit-hop');
+
+            rabbit.style.left = `${x}px`;
+            rabbit.style.top = `${y}px`;
+
+            if (onComplete) {
+                setTimeout(onComplete, 420);
+            }
+        }
+
+        function triggerMistake(element) {
+            sounds.playError();
+            stageMistakes++;
+            mistakeDisplay.textContent = stageMistakes;
+            triggerErrorShake(element);
+            triggerErrorShake(rabbit);
+        }
+
+        function triggerErrorShake(el) {
+            el.classList.remove('shake-element');
+            void el.offsetWidth;
+            el.classList.add('shake-element');
+        }
+
+        function showToastWarning() {
+            sounds.playHint();
+            toastWarning.classList.remove('opacity-0', 'pointer-events-none');
+            toastWarning.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toastWarning.classList.remove('opacity-100');
+                toastWarning.classList.add('opacity-0', 'pointer-events-none');
+            }, 1100);
+        }
+
+        function updateProgressBar() {
+            const percent = Math.max(0, Math.min(100, ((currentStep + 1) / (totalStonesCount + 1)) * 100));
+            progressBar.style.width = `${percent}%`;
+        }
+
+        function updateStoneHighlights() {
+            stonesData.forEach((stone, idx) => {
+                const iconContainer = stone.element.querySelector('.stone-icon');
+                const stoneBody = stone.element.querySelector('.stone-body');
+
+                if (idx === currentStep + 1) {
+                    // Active Target Heart Stone
+                    iconContainer.innerHTML = '<span class="pulse-heart inline-block text-red-500">❤️️</span>';
+                    stoneBody.classList.remove('bg-slate-300', 'bg-teal-200', 'opacity-60');
+                    stoneBody.classList.add('bg-amber-100', 'border-amber-400', 'scale-110');
+                } else if (idx <= currentStep) {
+                    // Cleared Stone
+                    iconContainer.innerHTML = '✨';
+                    stoneBody.classList.remove('bg-amber-100', 'border-amber-400', 'scale-110');
+                    stoneBody.classList.add('bg-teal-200', 'border-teal-400', 'opacity-80');
+                } else {
+                    // Future Stone
+                    iconContainer.innerHTML = '';
+                    stoneBody.classList.remove('bg-amber-100', 'border-amber-400', 'scale-110', 'bg-teal-200');
+                    stoneBody.classList.add('bg-slate-300', 'border-slate-400', 'opacity-60');
+                }
+            });
+        }
+
+        function jumpToGoalShore() {
+            const goalX = goalShore.offsetLeft + goalShore.offsetWidth / 2;
+            const goalY = goalShore.offsetTop + goalShore.offsetHeight / 2;
+
+            moveRabbitTo(goalX, goalY, () => {
+                currentStep = totalStonesCount;
+                updateProgressBar();
+                handleStageCompletion();
+            });
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            stageStartTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - stageStartTime) / 1000;
+                timerDisplay.textContent = `${elapsed.toFixed(1)}s`;
+            }, 100);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function loadStage(levelIdx) {
+            stopTimer();
+            currentLevelIdx = levelIdx;
+            const config = STAGE_CONFIG[currentLevelIdx];
+            totalStonesCount = config.stonesCount;
+
+            currentStep = -1;
+            stageMistakes = 0;
+            stageStartTime = null;
+            isGameActive = true;
+
+            levelBadge.textContent = `${config.level}단계 (${config.stonesCount}개)`;
+            timerDisplay.textContent = '00.0s';
+            mistakeDisplay.textContent = '0';
+            updateProgressBar();
+
+            generateStonePositions();
+            updateStoneHighlights();
+
+            // Place Rabbit on start shore center
+            const startX = startShore.offsetLeft + startShore.offsetWidth / 2;
+            const startY = startShore.offsetTop + startShore.offsetHeight / 2;
+            rabbit.style.left = `${startX}px`;
+            rabbit.style.top = `${startY}px`;
+
+            // Hide Modals
+            closeAllModals();
+        }
+
+        function closeAllModals() {
+            stageClearModal.classList.add('opacity-0', 'pointer-events-none');
+            stageClearModal.querySelector('.id-modal-box').classList.add('scale-90');
+
+            gameFinishModal.classList.add('opacity-0', 'pointer-events-none');
+            gameFinishModal.querySelector('.id-modal-box').classList.add('scale-90');
+
+            exitGameOverlay.classList.add('opacity-0', 'pointer-events-none');
+            exitGameOverlay.querySelector('.id-modal-box').classList.add('scale-90');
+        }
+
+        function resetWholeGame() {
+            totalAccumulatedMistakes = 0;
+            totalAccumulatedTime = 0;
+            loadStage(0);
+        }
+
+        function handleStageCompletion() {
+            isGameActive = false;
+            stopTimer();
+
+            const elapsedSecs = stageStartTime ? parseFloat(((Date.now() - stageStartTime) / 1000).toFixed(1)) : 0;
+            totalAccumulatedTime += elapsedSecs;
+            totalAccumulatedMistakes += stageMistakes;
+
+            sounds.playVictory();
+
+            if (currentLevelIdx < STAGE_CONFIG.length - 1) {
+                // Stage 1-4 Victory Modal
+                stageClearTitle.textContent = `${STAGE_CONFIG[currentLevelIdx].level}단계 성공! 🎉`;
+                stageTime.textContent = `${elapsedSecs}초`;
+                stageMistakesEl.textContent = `${stageMistakes}회`;
+
+                stageClearModal.classList.remove('opacity-0', 'pointer-events-none');
+                stageClearModal.querySelector('.id-modal-box').classList.remove('scale-90');
+            } else {
+                // Final Stage 5 Completion Modal
+                totalFinalTime.textContent = `${totalAccumulatedTime.toFixed(1)}초`;
+                totalFinalMistakes.textContent = `${totalAccumulatedMistakes}회`;
+
+                startConfetti();
+
+                gameFinishModal.classList.remove('opacity-0', 'pointer-events-none');
+                gameFinishModal.querySelector('.id-modal-box').classList.remove('scale-90');
+            }
+        }
+
+        function triggerExitGame() {
+            isGameActive = false;
+            stopTimer();
+            closeAllModals();
+
+            exitGameOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            exitGameOverlay.querySelector('.id-modal-box').classList.remove('scale-90');
+        }
+
+        function startConfetti() {
+            const canvas = document.getElementById('confettiCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = pondContainer.clientWidth;
+            canvas.height = pondContainer.clientHeight;
+
+            const particles = [];
+            const colors = ['#f43f5e', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+            for (let i = 0; i < 90; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.8) * 14,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    gravity: 0.28,
+                    rotation: Math.random() * 360,
+                    vRot: (Math.random() - 0.5) * 10
+                });
+            }
+
+            function render() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let activeCount = 0;
+
+                particles.forEach((p) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += p.gravity;
+                    p.rotation += p.vRot;
+
+                    if (p.y < canvas.height) activeCount++;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rotation * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                });
+
+                if (activeCount > 0) {
+                    requestAnimationFrame(render);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            render();
+        }
+
+        window.addEventListener('resize', () => {
+            if (isGameActive) {
+                generateStonePositions();
+                updateStoneHighlights();
+                if (currentStep === -1) {
+                    const startX = startShore.offsetLeft + startShore.offsetWidth / 2;
+                    const startY = startShore.offsetTop + startShore.offsetHeight / 2;
+                    rabbit.style.left = `${startX}px`;
+                    rabbit.style.top = `${startY}px`;
+                } else if (currentStep < totalStonesCount) {
+                    const stone = stonesData[currentStep];
+                    rabbit.style.left = `${stone.x}px`;
+                    rabbit.style.top = `${stone.y}px`;
+                }
+            }
+        });
+
+        // Event Listeners
+        restartBtn.addEventListener('click', resetWholeGame);
+        headerExitBtn.addEventListener('click', triggerExitGame);
+
+        retryStageBtn.addEventListener('click', () => loadStage(currentLevelIdx));
+        nextStageBtn.addEventListener('click', () => loadStage(currentLevelIdx + 1));
+
+        nextGameBtn.addEventListener('click', resetWholeGame);
+        exitGameModalBtn.addEventListener('click', triggerExitGame);
+        restartFromExitBtn.addEventListener('click', resetWholeGame);
+
+        window.onload = () => {
+            createWaterRipples();
+            resetWholeGame();
+        };
+    </script>
+</body>
+</html>
